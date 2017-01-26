@@ -1,7 +1,9 @@
 package vault
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 
 	vaultapi "github.com/hashicorp/vault/api"
@@ -13,13 +15,10 @@ type Client struct {
 }
 
 const (
-	token           = "726aeeac-2df2-0c89-22a2-5bee019a912d"
 	secretShares    = 5
 	secretThreshold = 3
-	backendPath     = "etcd"
+	initFileName    = "initInfo.json"
 )
-
-var vaultKeys []string
 
 func (c *Client) NewClient() error {
 	vaultClient, err := vaultapi.NewClient(vaultapi.DefaultConfig())
@@ -30,51 +29,57 @@ func (c *Client) NewClient() error {
 	return nil
 }
 
-func (c *Client) InitializeVault() (bool, error) {
+func (c *Client) InitializeVault() error {
 	// Creates a Sys to return the client for sys-related API calls.
 	sys := c.Client.Sys()
 	// Checks if Vault is initialized already
 	init, err := sys.InitStatus()
 	if err != nil {
-		return false, err
+		return err
 	}
 	// If Vault is not initialized, we initialize here and save its keys and token on dick for now.
 	if !init {
 		initRes, err := sys.Init(&vaultapi.InitRequest{SecretShares: secretShares, SecretThreshold: secretThreshold})
 		if err != nil {
-			return false, err
+			return err
 		}
 		// Here we save the keys and token on the disk
-		fmt.Println("initResponse", initRes)
+		bs, _ := json.Marshal(initRes)
+		fmt.Println(bs)
+		err = ioutil.WriteFile(initFileName, bs, 0777)
+		if err != nil {
+			log.Fatal(err)
+		}
+		return nil
 	}
-	return true, nil
+	return nil
 }
 
-func (c *Client) CheckSeal() {
-	vaultKeys = append(vaultKeys, "xQIXfz9KewZOSIC1zTjMFbdj8+5oQn6WpeWMIafSMOgB")
-	vaultKeys = append(vaultKeys, "z49U6x2c84Sfz/jZZd4e2+2Ll+R5zQB+K3EjT6FAuQMC")
-	vaultKeys = append(vaultKeys, "MeBfs74y5Hl9LQcyGZY6EuRk0pzlf7f5XXZ93tj0lkgD")
-	vaultKeys = append(vaultKeys, "hELvT9jou0tXvvl4ss/R3Aenbkx7mYY8aJ0EYCJlhSAE")
-	vaultKeys = append(vaultKeys, "ei3kF3tGrLa1XAaTzof1FQ5IKzTnKzG7Hppa8VvRqmsF")
-
+func (c *Client) CheckSeal() (vaultapi.InitResponse, error) {
 	sys := c.Client.Sys()
 
 	sealStatus, err := sys.SealStatus()
 	if err != nil {
-		log.Fatal(err)
+		return vaultapi.InitResponse{}, err
 	}
-	fmt.Println("Is sealed:", sealStatus.Sealed)
+	var initRes vaultapi.InitResponse
 	// If Vault is Sealed we unseal
 	if sealStatus.Sealed {
+		bs, err := ioutil.ReadFile(initFileName)
+		if err != nil {
+			return vaultapi.InitResponse{}, err
+		}
+		json.Unmarshal(bs, &initRes)
 		keysUsed := 0
 		// Here we go through the stored keys until the  Vault is unSealed
 		for sealStatus.Sealed {
-			sealStatus, err = sys.Unseal(vaultKeys[keysUsed])
+			sealStatus, err = sys.Unseal(initRes.Keys[keysUsed])
 			if err != nil {
-				log.Fatal(err)
+				return vaultapi.InitResponse{}, err
 			}
-			fmt.Println("Is sealed", sealStatus.Sealed)
+			log.Println("Is sealed", sealStatus.Sealed)
 			keysUsed++
 		}
 	}
+	return initRes, nil
 }

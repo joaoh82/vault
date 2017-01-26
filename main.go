@@ -6,10 +6,6 @@ import (
 	"github.com/joaoh82/vault/vault"
 )
 
-const (
-	token = "726aeeac-2df2-0c89-22a2-5bee019a912d"
-)
-
 var client vault.Client
 
 func main() {
@@ -17,19 +13,19 @@ func main() {
 	// Creating a new Vault Client
 	err := client.NewClient()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
-	ok, err := client.InitializeVault()
+	err = client.InitializeVault()
 	if err != nil {
 		log.Fatal(err)
 	}
-	if ok {
-		log.Println("initialized")
-		client.CheckSeal()
+	res, err := client.CheckSeal()
+	if err != nil {
+		log.Fatal(err)
 	}
 	// After Vault is initialized and Unsealed we set the Token for the Vault so we can perform operations.
-	client.Client.SetToken(token)
+	client.Client.SetToken(res.RootToken)
 
 	//c := vaultClient.Logical()
 	//sec, err := c.Read("secret/myfirstkey")
