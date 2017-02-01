@@ -20,6 +20,7 @@ const (
 	initFileName    = "initInfo.json"
 )
 
+// NewClient creates a new Vault Client
 func (c *Client) NewClient() error {
 	vaultClient, err := vaultapi.NewClient(vaultapi.DefaultConfig())
 	if err != nil {
@@ -29,6 +30,7 @@ func (c *Client) NewClient() error {
 	return nil
 }
 
+// InitializeVault checks if vault is initialized and if not, initializes.
 func (c *Client) InitializeVault() error {
 	// Creates a Sys to return the client for sys-related API calls.
 	sys := c.Client.Sys()
@@ -55,6 +57,7 @@ func (c *Client) InitializeVault() error {
 	return nil
 }
 
+// CheckSeal checks if Vault is sealed and if it is, it unseals.
 func (c *Client) CheckSeal() (vaultapi.InitResponse, error) {
 	sys := c.Client.Sys()
 
